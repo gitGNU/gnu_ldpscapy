@@ -6,17 +6,28 @@
 Welcome to ldpscapy's documentation!
 ====================================
 
-Contents:
+LDPScapy is an implementation of the LDP layer for Scapy.
+
+Download
+--------
+
+The last version of the layer is available with the following link:
+
+http://git.savannah.gnu.org/cgit/ldpscapy.git/snapshot/ldpscapy-master.tar.gz
+
+
+Documentation
+--------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
+   installation
    usage
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
 
