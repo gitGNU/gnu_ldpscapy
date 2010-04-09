@@ -36,11 +36,16 @@ def guess_payload(p):
         0x0401: LDPLabelReqM,
         0x0404: LDPLabelARM,
         0x0402: LDPLabelWM,
-        0x0403: LDPLabelRM,
+        0x0403: LDPLabelRelM,
         }
     type = struct.unpack("!H",p[0:2])[0]
     type = type & 0x7fff
-    return LDPTypes[type]
+    if type == 0x0001 and struct.unpack("!H",p[3:5])[0] > 20:
+        return LDP
+    if type in LDPTypes:
+        return LDPTypes[type]
+    else:
+        return Raw
 
 ## Fields ##
 
@@ -50,20 +55,23 @@ class FecTLVField(StrField):
     islist=1
     def m2i(self, pkt, x):
         nbr = struct.unpack("!H",x[2:4])[0]
-        nbr /= 8 
-        #nbr=1
+        used = 0
         x=x[4:]
         list=[]
-        for i in range(0,nbr):
+        while x:
             #if x[0] == 1:
             #   list.append('Wildcard')
             #else:
             #mask=ord(x[8*i+3])
             #add=inet_ntoa(x[8*i+4:8*i+8])
             mask=ord(x[3])
-            add=inet_ntoa(x[4:8])
+            nbroctets = mask / 8
+            if mask % 8:
+                nbroctets += 1
+            add=inet_ntoa(x[4:4+nbroctets]+"\x00"*(4-nbroctets))
             list.append( (add, mask) )
-            x=x[8:]
+            used += 4 + nbroctets
+            x=x[4+nbroctets:]
         return list
     def i2m(self, pkt, x):
         if type(x) is str:
