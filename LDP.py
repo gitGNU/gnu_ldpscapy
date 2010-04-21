@@ -164,7 +164,7 @@ class StatusTLVField(StrField):
     def i2m(self, pkt, x):
         if type(x) is str:
             return x
-        s = "\x03\x00" + struct.pack("!H",12)
+        s = "\x03\x00" + struct.pack("!H",10)
         statuscode = 0
         if x[0] != 0:
             statuscode += 2**31
@@ -193,11 +193,10 @@ class CommonHelloTLVField(StrField):
         list = []
         v = struct.unpack("!H",x[4:6])[0]
         list.append(v)
-        v = x[6] & 0x80
-        v = v >> 7
+        flags = struct.unpack("B",x[6])[0]
+        v = ( flags & 0x80 ) >> 7
         list.append(v)
-        v = x[6] & 0x40
-        v = v >> 6
+        v = ( flags & 0x40 ) >> 7
         list.append(v)
         return list
     def i2m(self, pkt, x):
@@ -215,6 +214,41 @@ class CommonHelloTLVField(StrField):
         return s
     def getfield(self, pkt, s):
         l = 8
+        return s[l:],self.m2i(pkt, s[:l])
+
+
+# 3.5.3 Common Session Parameters TLV
+class CommonSessionTLVField(StrField):
+    islist = 1
+    def m2i(self, pkt, x):
+        l = []
+        l.append(struct.unpack("!H",x[6:8])[0])
+        octet = struct.unpack("B",x[8:9])[0]
+        l.append( (octet & 2**7 ) >> 7 )
+        l.append( (octet & 2**6 ) >> 6 )
+        l.append( struct.unpack("B",x[9:10])[0] )
+        l.append( struct.unpack("!H",x[10:12])[0] )
+        l.append( inet_ntoa(x[12:16]) )
+        l.append( struct.unpack("!H",x[16:18])[0] )
+        return l
+    def i2m(self, pkt, x):
+        if type(x) is str:
+            return x
+        s = "\x05\x00\x00\x0E\x00\x01"
+        s += struct.pack("!H",x[0])
+        octet = 0
+        if x[1] != 0:
+            octet += 2**7
+        if x[2] != 0:
+            octet += 2**6
+        s += struct.pack("!B",octet)
+        s += struct.pack("!B",x[3])
+        s += struct.pack("!H",x[4])
+        s += inet_aton(x[5])
+        s += struct.pack("!H",x[6])
+        return s
+    def getfield(self, pkt, s):
+        l = 18
         return s[l:],self.m2i(pkt, s[:l])
     
 
@@ -262,18 +296,7 @@ class LDPInit(Packet):
                     XBitField("type", 0x0200, 15),
                     ShortField("len", None),
                     IntField("id", 0),
-                    BitField("oo",0,2),
-                    XBitField("parms",0x0500,14),
-                    ShortField("tlen",14),
-                    ShortField("version",1),
-                    ShortField("keepalive",180),
-                    BitField("a",0,1),
-                    BitField("d",0,1),
-                    BitField("reserved",0,6),
-                    ByteField("pvlim",0),
-                    ShortField("maxlen",0),
-                    IPField("rid","127.0.0.1"),
-                    ShortField("rspace",0) ]
+                    CommonSessionTLVField("params",None)]
     def post_build(self, p, pay):
         if self.len is None:
             l = len(p) - 4
