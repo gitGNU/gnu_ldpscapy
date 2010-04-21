@@ -40,7 +40,7 @@ def guess_payload(p):
         }
     type = struct.unpack("!H",p[0:2])[0]
     type = type & 0x7fff
-    if type == 0x0001 and struct.unpack("!H",p[3:5])[0] > 20:
+    if type == 0x0001 and struct.unpack("!H",p[2:4])[0] > 20:
         return LDP
     if type in LDPTypes:
         return LDPTypes[type]
@@ -148,6 +148,44 @@ class AddressTLVField(StrField):
         return s[l:],self.m2i(pkt, s[:l])
 
 
+# 3.4.6. Status TLV
+
+class StatusTLVField(StrField):
+    islist=1
+    def m2i(self, pkt, x):
+        l = []
+        statuscode = struct.unpack("!I",x[4:8])[0]
+        l.append( (statuscode & 2**31) >> 31)
+        l.append( (statuscode & 2**30) >> 30)
+        l.append( statuscode & 0x3FFFFFFF )
+        l.append( struct.unpack("!I", x[8:12])[0] )
+        l.append( struct.unpack("!H", x[12:14])[0] )
+        return l
+    def i2m(self, pkt, x):
+        if type(x) is str:
+            return x
+        s = "\x03\x00" + struct.pack("!H",12)
+        statuscode = 0
+        if x[0] != 0:
+            statuscode += 2**31
+        if x[1] != 0:
+            statuscode += 2**30
+        statuscode += x[2]
+        s += struct.pack("!I",statuscode)
+        if len(x) > 3:
+            s += struct.pack("!I",x[3])
+        else:
+            s += "\x00\x00\x00\x00"
+        if len(x) > 4:
+            s += struct.pack("!H",x[4])
+        else:
+            s += "\x00\x00"
+        return s
+    def getfield(self, pkt, s):
+        l = 14
+        return s[l:],self.m2i(pkt, s[:l])
+
+
 # 3.5.2 Common Hello Parameters TLV
 class CommonHelloTLVField(StrField):
     islist = 1
@@ -188,10 +226,13 @@ class LDPNotification(Packet):
     name = "LDPNotification"
     fields_desc = [ BitField("u",0,1),
                     BitField("type", 0x0001, 15),
-                    ShortField("len", 12),
-                    IntField("id",None) ,
-                    IntField("status",None) ]
+                    ShortField("len", None),
+                    IntField("id", 0) ,
+                    StatusTLVField("status",(0,0,0,0,0)) ]
     def post_build(self, p, pay):
+        if self.len is None:
+            l = len(p) - 4
+            p = p[:2]+struct.pack("!H", l)+p[4:]
         return p+pay  
     def guess_payload_class(self, p):
         return guess_payload(p)
